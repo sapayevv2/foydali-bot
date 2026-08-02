@@ -1,6 +1,6 @@
 import asyncio
 
-# Pyrogram import bo'lishidan avval event loop yaratamiz
+# Pyrogram import bo'lishidan avval event loop yaratamiz (CRITICAL FIX)
 try:
     loop = asyncio.get_event_loop()
 except RuntimeError:
@@ -35,7 +35,7 @@ dp = Dispatcher()
 # Xotira va obyektlar
 user_data = {}
 connected_accounts = {}
-active_clients = {}   # Pyrogram clientlar
+active_clients = {}   # Pyrogram ishlayotgan clientlar
 mention_flags = {}    # To'xtatish bayroqlari
 
 # ----------------- KEYBOARDLAR -----------------
@@ -245,6 +245,8 @@ async def process_phone_number(message: types.Message, phone: str):
             pass
         
         err_str = str(e)
+        
+        # FLOOD_WAIT (ko'p urinish cheklovi) xatoligi yuz berganda
         if "FLOOD_WAIT" in err_str or "420" in err_str:
             seconds_match = re.search(r'(\d+)', err_str)
             seconds = int(seconds_match.group(1)) if seconds_match else 60000
@@ -252,9 +254,10 @@ async def process_phone_number(message: types.Message, phone: str):
             
             pretty_text = (
                 "⏳ **Vaqtincha cheklov!**\n\n"
-                f"Siz Telegram'ga kirishda juda ko'p marotaba urinib yuborgansiz.\n\n"
+                f"Siz Telegram'ga kiringizda ko'p marotaba kodingizni so'ragansiz.\n"
+                f"Telegram ushbu raqamga kod yuborishni vaqtincha to'xtatdi.\n\n"
                 f"⏱ **Kutishingiz kerak bo'lgan vaqt:** taxminan **{soat} soat** ({seconds} soniya).\n\n"
-                "💡 Boshqa telefon raqamingiz bo'lsa o'shani sinab ko'ring."
+                "💡 *Maslahat:* Boshqa telefon raqamingiz bo'lsa o'shani sinab ko'ring yoki vaqt tugashini kuting."
             )
             await status_msg.edit_text(pretty_text, parse_mode="Markdown")
         else:
@@ -277,7 +280,7 @@ async def process_input_handler(message: types.Message):
     if data.get("step") == "code":
         code = clean_telegram_code(message.text)
         if not code:
-            await message.answer("❌ Noto'g'ri format! Kodni 5 xonali ko'rinishida yuboring.")
+            await message.answer("❌ Noto'g'ri format! Kodni 5 xonali ko'rinishda yuboring.")
             return
 
         try:
@@ -292,7 +295,10 @@ async def process_input_handler(message: types.Message):
                 seconds_match = re.search(r'(\d+)', err_str)
                 seconds = int(seconds_match.group(1)) if seconds_match else 60000
                 soat = round(seconds / 3600, 1)
-                await message.answer(f"⏳ **Vaqtincha cheklov!** Telegram **{soat} soat**ga blokladi.", parse_mode="Markdown")
+                await message.answer(
+                    f"⏳ **Vaqtincha cheklov!**\n\nKodni ko'p marta noto'g'ri kiritganingiz uchun Telegram **{soat} soat**ga blokladi.",
+                    parse_mode="Markdown"
+                )
             else:
                 await message.answer(f"❌ Xatolik: {e}")
 
@@ -308,22 +314,14 @@ async def process_input_handler(message: types.Message):
                 seconds_match = re.search(r'(\d+)', err_str)
                 seconds = int(seconds_match.group(1)) if seconds_match else 60000
                 soat = round(seconds / 3600, 1)
-                await message.answer(f"⏳ **Vaqtincha cheklov!** Telegram **{soat} soat**ga blokladi.", parse_mode="Markdown")
+                await message.answer(
+                    f"⏳ **Vaqtincha cheklov!**\n\nParolni ko'p marta noto'g'ri kiritganingiz uchun Telegram **{soat} soat**ga blokladi.",
+                    parse_mode="Markdown"
+                )
             else:
                 await message.answer(f"❌ Xatolik: {e}")
 
 async def finalize_login(message: types.Message, client: Client, user_id: int, phone: str):
-    if user_id in active_clients:
-        try:
-            await active_clients[user_id].stop()
-        except Exception:
-            pass
-
-    await client.start()
-    
-    setup_pyrogram_listeners(client, user_id)
-    active_clients[user_id] = client
-    
     me = await client.get_me()
     
     connected_accounts[user_id] = {
@@ -333,14 +331,23 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
         "username": f"@{me.username}" if me.username else "Mavjud emas"
     }
     
-    if user_id in user_data:
-        del user_data[user_id]
+    del user_data[user_id]
+
+    try:
+        await client.disconnect()
+    except Exception:
+        pass
+
+    setup_pyrogram_listeners(client, user_id)
+    active_clients[user_id] = client
+
+    asyncio.create_task(client.start())
 
     await message.answer(f"✅ **Akkaunt muvaffaqiyatli ulandi va ishga tushdi!**\n\nIsm: {me.first_name}\nID: `{me.id}`", parse_mode="Markdown")
     await message.answer(
         "⚡ **.u funksiyasi faollashdi!**\n\n"
         "• Oddiy mention: `.u`\n"
-        "• Matnli mention: `.u Salom`\n"
+        "• Matnli mention: `.u Sizning so'zingiz`\n"
         "• To'xtatish: `.su`",
         reply_markup=main_keyboard
     )
@@ -433,28 +440,6 @@ def run_web_server():
 
 async def main():
     print("Bot muvaffaqiyatli ishga tushdi!")
-    
-    session_files = [f for f in os.listdir('.') if f.startswith('user_session_') and f.endswith('.session')]
-    for file in session_files:
-        try:
-            uid = int(file.replace('user_session_', '').replace('.session', ''))
-            client = Client(f"user_session_{uid}", api_id=API_ID, api_hash=API_HASH)
-            await client.start()
-            
-            setup_pyrogram_listeners(client, uid)
-            active_clients[uid] = client
-            
-            me = await client.get_me()
-            connected_accounts[uid] = {
-                "first_name": me.first_name,
-                "phone": "Saqlangan",
-                "id": me.id,
-                "username": f"@{me.username}" if me.username else "Mavjud emas"
-            }
-            print(f"Userbot avtomatik ulandi: {me.first_name}")
-        except Exception as e:
-            print(f"Userbotni ulab bo'lmadi: {e}")
-
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
@@ -462,3 +447,4 @@ if __name__ == "__main__":
     server_thread.start()
     
     loop.run_until_complete(main())
+
