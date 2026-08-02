@@ -209,10 +209,19 @@ async def process_phone_number(message: types.Message, phone: str):
         phone = '+' + phone
 
     session_name = f"user_session_{user_id}"
+    
+    # Oldingi vaqtincha session mavjud bo'lsa o'chiramiz
+    if os.path.exists(f"{session_name}.session"):
+        try:
+            os.remove(f"{session_name}.session")
+        except Exception:
+            pass
+
     status_msg = await message.answer("🔄 Telegram'ga ulanish so'rovi yuborilmoqda...")
     
+    client = Client(session_name, api_id=API_ID, api_hash=API_HASH)
+
     try:
-        client = Client(session_name, api_id=API_ID, api_hash=API_HASH)
         await client.connect()
         sent_code = await client.send_code(phone)
         
@@ -229,22 +238,37 @@ async def process_phone_number(message: types.Message, phone: str):
             "*(Kodni 1-2-3-4-5 ko'rinishida yuboring)*"
         )
         await status_msg.edit_text(text, parse_mode="Markdown")
-        await message.answer("Tugmalar:", reply_markup=cancel_keyboard)
+        await message.answer("Amalni bekor qilish uchun pastdagi tugmani bosing:", reply_markup=cancel_keyboard)
 
     except FloodWait as e:
+        # Clientni yopamiz
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+            
         soat = round(e.value / 3600, 1)
         text = (
-            f"⚠️ **Vaqtincha cheklov (FloodWait)!**\n\n"
-            f"Ushbu raqamga juda ko'p SMS/kod so'rovi yuborilgani uchun Telegram vaqtincha blokladi.\n\n"
+            f"⚠️ **Vaqtincha cheklov!**\n\n"
+            f"Ushbu raqamga juda ko'p marotaba SMS/kod so'ralgani uchun Telegram cheklov qo'ydi.\n\n"
             f"⏳ **Kutish vaqti:** taxminan **{soat} soat** ({e.value} soniya).\n\n"
-            f"💡 *Maslahat:* Boshqa telefon raqam bilan sinab ko'ring yoki ko'rsatilgan vaqt tugashini kuting."
+            f"💡 Boshqa telefon raqam orqali urinib ko'ring yoki kutish vaqti tugashini kuting."
         )
         await status_msg.edit_text(text, parse_mode="Markdown")
 
     except RPCError as e:
-        await status_msg.edit_text(f"❌ Telegram xatoligi: `{e.MESSAGE}`", parse_mode="Markdown")
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+        await status_msg.edit_text(f"❌ **Telegram xatoligi:** `{e.MESSAGE}`", parse_mode="Markdown")
+
     except Exception as e:
-        await status_msg.edit_text(f"❌ Xatolik yuz berdi: {e}")
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+        await status_msg.edit_text(f"❌ **Xatolik yuz berdi:** {e}")
 
 def clean_telegram_code(text: str) -> str:
     digits = re.sub(r'\D', '', text)
@@ -275,7 +299,7 @@ async def process_input_handler(message: types.Message):
         except FloodWait as e:
             soat = round(e.value / 3600, 1)
             await message.answer(
-                f"⚠️ **Telegram cheklovi!**\n\nKodni ko'p marta noto'g'ri kiritganingiz uchun Telegram **{soat} soat**ga blokladi.",
+                f"⚠️ **Vaqtincha cheklov!**\n\nKodni ko'p marta noto'g'ri kiritganingiz uchun Telegram **{soat} soat**ga blokladi.",
                 parse_mode="Markdown"
             )
         except Exception as e:
@@ -290,7 +314,7 @@ async def process_input_handler(message: types.Message):
         except FloodWait as e:
             soat = round(e.value / 3600, 1)
             await message.answer(
-                f"⚠️ **Telegram cheklovi!**\n\nParolni ko'p marta noto'g'ri kiritganingiz uchun Telegram **{soat} soat**ga blokladi.",
+                f"⚠️ **Vaqtincha cheklov!**\n\nParolni ko'p marta noto'g'ri kiritganingiz uchun Telegram **{soat} soat**ga blokladi.",
                 parse_mode="Markdown"
             )
         except Exception as e:
@@ -335,13 +359,11 @@ def setup_pyrogram_listeners(client: Client, user_id: int):
     async def handle_commands(c: Client, msg: PyroMessage):
         cmd = msg.text.strip()
 
-        # .u bilan boshlangan barcha buyruqlarni ushlaymiz (masalan: .u yoki .u Salom)
         if cmd == ".u" or cmd.startswith(".u "):
             if mention_flags.get(user_id, False):
                 await msg.reply_text("⚠️ Mention davom etmoqda. To'xtatish uchun `.su` yuboring.")
                 return
 
-            # Agar .u dan keyin matn yozilgan bo'lsa, o'sha matnni ajratib olamiz
             custom_text = ""
             if cmd.startswith(".u "):
                 custom_text = cmd[3:].strip()
@@ -372,14 +394,12 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
             if member.user.is_bot or member.user.is_deleted:
                 continue
 
-            # Foydalanuvchini tayyorlaymiz
             if member.user.username:
                 user_mention = f"@{member.user.username}"
             else:
                 name = member.user.first_name or "Foydalanuvchi"
                 user_mention = f"[{name}](tg://user?id={member.user.id})"
 
-            # Qo'shimcha so'z bo'lsa yoniga qo'shamiz, bo'lmasa shunchaki mention yuboramiz
             if custom_text:
                 text_to_send = f"{user_mention} {custom_text}"
             else:
@@ -426,6 +446,7 @@ if __name__ == "__main__":
     server_thread.start()
     
     loop.run_until_complete(main())
+
 
 
 
