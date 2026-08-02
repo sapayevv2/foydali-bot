@@ -19,7 +19,7 @@ from pyrogram.types import Message as PyroMessage
 from pyrogram.errors import SessionPasswordNeeded, PasswordHashInvalid
 
 # ----------------- SOZLAMALAR -----------------
-BOT_TOKEN = "8995038139:AAGbfl0eUNKJWm_BavdsWdAr-omsbmZaGhk"
+BOT_TOKEN = "8606815133:AAEOwCYrpOKrbsvdlBy6alEDvV_G00JhK64"
 
 API_ID = 34424037
 API_HASH = "a2688add3c49c5015c996012b3a2dba3"
