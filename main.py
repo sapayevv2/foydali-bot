@@ -358,15 +358,13 @@ async def start_web_server():
     await site.start()
 
 async def main():
-    # Veb-serverni ishga tushirish (Render port o'qishi uchun)
-    await start_web_server()
-    print("Veb-server Render va UptimeRobot uchun ishga tushdi!")
+    # Veb-serverni fonda ishga tushiramiz (Render portni ko'rishi uchun)
+    asyncio.create_task(start_web_server())
+    print("Veb-server Render uchun ishga tushdi!")
     
-    # Bot pollingni boshlash
+    # Bot polling
     print("Bot muvaffaqiyatli ishga tushdi!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
