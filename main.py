@@ -321,6 +321,9 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
 
     await client.start()
     
+    setup_pyrogram_listeners(client, user_id)
+    active_clients[user_id] = client
+    
     me = await client.get_me()
     
     connected_accounts[user_id] = {
@@ -332,9 +335,6 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
     
     if user_id in user_data:
         del user_data[user_id]
-
-    setup_pyrogram_listeners(client, user_id)
-    active_clients[user_id] = client
 
     await message.answer(f"✅ **Akkaunt muvaffaqiyatli ulandi va ishga tushdi!**\n\nIsm: {me.first_name}\nID: `{me.id}`", parse_mode="Markdown")
     await message.answer(
@@ -433,14 +433,17 @@ def run_web_server():
 
 async def main():
     print("Bot muvaffaqiyatli ishga tushdi!")
-    # Agar oldindan session fayli saqlangan bo'lsa, uni avtomatik ulab qo'shamiz
-    # (Agar siz akkauntni allaqachon ulagan bo'lsangiz, bot qayta yoqilganda o'zi ulanib oladi)
+    
     session_files = [f for f in os.listdir('.') if f.startswith('user_session_') and f.endswith('.session')]
     for file in session_files:
         try:
             uid = int(file.replace('user_session_', '').replace('.session', ''))
             client = Client(f"user_session_{uid}", api_id=API_ID, api_hash=API_HASH)
             await client.start()
+            
+            setup_pyrogram_listeners(client, uid)
+            active_clients[uid] = client
+            
             me = await client.get_me()
             connected_accounts[uid] = {
                 "first_name": me.first_name,
@@ -448,8 +451,6 @@ async def main():
                 "id": me.id,
                 "username": f"@{me.username}" if me.username else "Mavjud emas"
             }
-            setup_pyrogram_listeners(client, uid)
-            active_clients[uid] = client
             print(f"Userbot avtomatik ulandi: {me.first_name}")
         except Exception as e:
             print(f"Userbotni ulab bo'lmadi: {e}")
@@ -461,4 +462,3 @@ if __name__ == "__main__":
     server_thread.start()
     
     loop.run_until_complete(main())
-
