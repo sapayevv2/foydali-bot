@@ -87,6 +87,7 @@ def get_start_text(first_name: str) -> str:
         f"🤖 **FOYDALI Bot ga xush kelibsiz, {first_name}!**\n\n"
         "utag start .u"
         "utag stop .su"
+        "Foydalanish uchun akkauntni ulang"
         "Kerakli bo'limni pastdagi tugmalardan tanlang 👇"
     )
 
