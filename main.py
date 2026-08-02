@@ -210,7 +210,6 @@ async def process_phone_number(message: types.Message, phone: str):
 
     session_name = f"user_session_{user_id}"
     
-    # Oldingi vaqtincha session mavjud bo'lsa o'chiramiz
     if os.path.exists(f"{session_name}.session"):
         try:
             os.remove(f"{session_name}.session")
@@ -218,7 +217,6 @@ async def process_phone_number(message: types.Message, phone: str):
             pass
 
     status_msg = await message.answer("🔄 Telegram'ga ulanish so'rovi yuborilmoqda...")
-    
     client = Client(session_name, api_id=API_ID, api_hash=API_HASH)
 
     try:
@@ -240,35 +238,30 @@ async def process_phone_number(message: types.Message, phone: str):
         await status_msg.edit_text(text, parse_mode="Markdown")
         await message.answer("Amalni bekor qilish uchun pastdagi tugmani bosing:", reply_markup=cancel_keyboard)
 
-    except FloodWait as e:
-        # Clientni yopamiz
-        try:
-            await client.disconnect()
-        except Exception:
-            pass
-            
-        soat = round(e.value / 3600, 1)
-        text = (
-            f"⚠️ **Vaqtincha cheklov!**\n\n"
-            f"Ushbu raqamga juda ko'p marotaba SMS/kod so'ralgani uchun Telegram cheklov qo'ydi.\n\n"
-            f"⏳ **Kutish vaqti:** taxminan **{soat} soat** ({e.value} soniya).\n\n"
-            f"💡 Boshqa telefon raqam orqali urinib ko'ring yoki kutish vaqti tugashini kuting."
-        )
-        await status_msg.edit_text(text, parse_mode="Markdown")
-
-    except RPCError as e:
-        try:
-            await client.disconnect()
-        except Exception:
-            pass
-        await status_msg.edit_text(f"❌ **Telegram xatoligi:** `{e.MESSAGE}`", parse_mode="Markdown")
-
     except Exception as e:
         try:
             await client.disconnect()
         except Exception:
             pass
-        await status_msg.edit_text(f"❌ **Xatolik yuz berdi:** {e}")
+        
+        err_str = str(e)
+        
+        # FLOOD_WAIT (ko'p urinish cheklovi) xatoligi yuz berganda
+        if "FLOOD_WAIT" in err_str or "420" in err_str:
+            seconds_match = re.search(r'(\d+)', err_str)
+            seconds = int(seconds_match.group(1)) if seconds_match else 60000
+            soat = round(seconds / 3600, 1)
+            
+            pretty_text = (
+                "⏳ **Vaqtincha cheklov!**\n\n"
+                f"Siz Telegram'ga kiringizda ko'p marotaba kodingizni so'ragansiz.\n"
+                f"Telegram ushbu raqamga kod yuborishni vaqtincha to'xtatdi.\n\n"
+                f"⏱ **Kutishingiz kerak bo'lgan vaqt:** taxminan **{soat} soat** ({seconds} soniya).\n\n"
+                "💡 *Maslahat:* Boshqa telefon raqamingiz bo'lsa o'shani sinab ko'ring yoki vaqt tugashini kuting."
+            )
+            await status_msg.edit_text(pretty_text, parse_mode="Markdown")
+        else:
+            await status_msg.edit_text(f"❌ **Xatolik yuz berdi:** {e}")
 
 def clean_telegram_code(text: str) -> str:
     digits = re.sub(r'\D', '', text)
@@ -296,14 +289,18 @@ async def process_input_handler(message: types.Message):
         except SessionPasswordNeeded:
             data["step"] = "password"
             await message.answer("🔐 **2FA (Oblachniy) parolingizni kiriting:**", reply_markup=cancel_keyboard)
-        except FloodWait as e:
-            soat = round(e.value / 3600, 1)
-            await message.answer(
-                f"⚠️ **Vaqtincha cheklov!**\n\nKodni ko'p marta noto'g'ri kiritganingiz uchun Telegram **{soat} soat**ga blokladi.",
-                parse_mode="Markdown"
-            )
         except Exception as e:
-            await message.answer(f"❌ Xatolik: {e}")
+            err_str = str(e)
+            if "FLOOD_WAIT" in err_str or "420" in err_str:
+                seconds_match = re.search(r'(\d+)', err_str)
+                seconds = int(seconds_match.group(1)) if seconds_match else 60000
+                soat = round(seconds / 3600, 1)
+                await message.answer(
+                    f"⏳ **Vaqtincha cheklov!**\n\nKodni ko'p marta noto'g'ri kiritganingiz uchun Telegram **{soat} soat**ga blokladi.",
+                    parse_mode="Markdown"
+                )
+            else:
+                await message.answer(f"❌ Xatolik: {e}")
 
     elif data.get("step") == "password":
         try:
@@ -311,14 +308,18 @@ async def process_input_handler(message: types.Message):
             await finalize_login(message, client, user_id, phone)
         except PasswordHashInvalid:
             await message.answer("❌ Noto'g'ri parol! Qayta kiriting:")
-        except FloodWait as e:
-            soat = round(e.value / 3600, 1)
-            await message.answer(
-                f"⚠️ **Vaqtincha cheklov!**\n\nParolni ko'p marta noto'g'ri kiritganingiz uchun Telegram **{soat} soat**ga blokladi.",
-                parse_mode="Markdown"
-            )
         except Exception as e:
-            await message.answer(f"❌ Xatolik: {e}")
+            err_str = str(e)
+            if "FLOOD_WAIT" in err_str or "420" in err_str:
+                seconds_match = re.search(r'(\d+)', err_str)
+                seconds = int(seconds_match.group(1)) if seconds_match else 60000
+                soat = round(seconds / 3600, 1)
+                await message.answer(
+                    f"⏳ **Vaqtincha cheklov!**\n\nParolni ko'p marta noto'g'ri kiritganingiz uchun Telegram **{soat} soat**ga blokladi.",
+                    parse_mode="Markdown"
+                )
+            else:
+                await message.answer(f"❌ Xatolik: {e}")
 
 async def finalize_login(message: types.Message, client: Client, user_id: int, phone: str):
     me = await client.get_me()
@@ -446,7 +447,3 @@ if __name__ == "__main__":
     server_thread.start()
     
     loop.run_until_complete(main())
-
-
-
-
