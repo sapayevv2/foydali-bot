@@ -357,14 +357,23 @@ async def start_web_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
+# ----------------- ISHGA TUSHIRISH (EVENT LOOP FIX) -----------------
+
 async def main():
-    # Veb-serverni fonda ishga tushiramiz (Render portni ko'rishi uchun)
-    asyncio.create_task(start_web_server())
+    # Veb-serverni fonda ishga tushirish
+    await start_web_server()
     print("Veb-server Render uchun ishga tushdi!")
     
-    # Bot polling
+    # Bot pollingni boshlash
     print("Bot muvaffaqiyatli ishga tushdi!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        loop.close()
