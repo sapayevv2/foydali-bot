@@ -1,4 +1,12 @@
 import asyncio
+
+# Pyrogram import bo'lishidan avval event loop yaratamiz (CRITICAL FIX)
+try:
+    loop = asyncio.get_event_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 import os
 import re
 import threading
@@ -253,7 +261,7 @@ async def process_input_handler(message: types.Message):
             await client.check_password(message.text.strip())
             await finalize_login(message, client, user_id, phone)
         except PasswordHashInvalid:
-            await message.answer("❌ Noto'g'ri parol! Qayta kiriting:")
+            await message.answer("❌ Noto'g me'yoriy parol! Qayta kiriting:")
         except Exception as e:
             await message.answer(f"❌ Xatolik: {e}")
 
@@ -342,37 +350,35 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int):
     finally:
         mention_flags[user_id] = False
 
-# ----------------- THREADING WEB SERVER (RENDER & UPTIME FIX) -----------------
+# ----------------- THREADING WEB SERVER (RENDER FIX) -----------------
 
 async def handle_ping(request):
     return web.Response(text="Bot runs fine!")
 
 def run_web_server():
-    """Veb-serverni alohida thread'da va o'zining shaxsiy loop'ida ishga tushirish."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    server_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(server_loop)
     
     app = web.Application()
     app.router.add_get("/", handle_ping)
     
     port = int(os.environ.get("PORT", 8080))
     runner = web.AppRunner(app)
-    loop.run_until_complete(runner.setup())
+    server_loop.run_until_complete(runner.setup())
     site = web.TCPSite(runner, "0.0.0.0", port)
-    loop.run_until_complete(site.start())
-    print(f"Veb-server {port}-portda alohida Thread'da ishga tushdi!")
-    loop.run_forever()
+    server_loop.run_until_complete(site.start())
+    print(f"Veb-server {port}-portda ishga tushdi!")
+    server_loop.run_forever()
 
 async def main():
     print("Bot muvaffaqiyatli ishga tushdi!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    # 1. Veb-serverni alohida potokda (background thread) zudlik bilan ishga tushiramiz
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
     
-    # 2. Botni asosiy thread'da yurgizamiz
-    asyncio.run(main())
+    loop.run_until_complete(main())
+
 
 
