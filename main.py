@@ -1,6 +1,6 @@
 import asyncio
 
-# Pyrogram import bo'lishidan avval event loop yaratamiz (CRITICAL FIX)
+# Pyrogram import bo'lishidan avval event loop yaratamiz
 try:
     loop = asyncio.get_event_loop()
 except RuntimeError:
@@ -35,7 +35,7 @@ dp = Dispatcher()
 # Xotira va obyektlar
 user_data = {}
 connected_accounts = {}
-active_clients = {}   # Pyrogram ishlayotgan clientlar
+active_clients = {}   # Pyrogram clientlar
 mention_flags = {}    # To'xtatish bayroqlari
 
 # ----------------- KEYBOARDLAR -----------------
@@ -277,7 +277,7 @@ async def process_input_handler(message: types.Message):
     if data.get("step") == "code":
         code = clean_telegram_code(message.text)
         if not code:
-            await message.answer("❌ Noto'g'ri format! Kodni 5 xonali ko'rinishda yuboring.")
+            await message.answer("❌ Noto'g'ri format! Kodni 5 xonali ko'rinishida yuboring.")
             return
 
         try:
@@ -319,7 +319,6 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
         except Exception:
             pass
 
-    # Clientni to'liq ishga tushirib kutamiz
     await client.start()
     
     me = await client.get_me()
@@ -395,7 +394,6 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
                 name = member.user.first_name or "Foydalanuvchi"
                 user_mention = f"[{name}](tg://user?id={member.user.id})"
 
-            # 🔥 .u dan keyin yozilgan so'zni mention yoniga qo'shish
             if custom_text:
                 text_to_send = f"{user_mention} {custom_text}"
             else:
@@ -435,6 +433,27 @@ def run_web_server():
 
 async def main():
     print("Bot muvaffaqiyatli ishga tushdi!")
+    # Agar oldindan session fayli saqlangan bo'lsa, uni avtomatik ulab qo'shamiz
+    # (Agar siz akkauntni allaqachon ulagan bo'lsangiz, bot qayta yoqilganda o'zi ulanib oladi)
+    session_files = [f for f in os.listdir('.') if f.startswith('user_session_') and f.endswith('.session')]
+    for file in session_files:
+        try:
+            uid = int(file.replace('user_session_', '').replace('.session', ''))
+            client = Client(f"user_session_{uid}", api_id=API_ID, api_hash=API_HASH)
+            await client.start()
+            me = await client.get_me()
+            connected_accounts[uid] = {
+                "first_name": me.first_name,
+                "phone": "Saqlangan",
+                "id": me.id,
+                "username": f"@{me.username}" if me.username else "Mavjud emas"
+            }
+            setup_pyrogram_listeners(client, uid)
+            active_clients[uid] = client
+            print(f"Userbot avtomatik ulandi: {me.first_name}")
+        except Exception as e:
+            print(f"Userbotni ulab bo'lmadi: {e}")
+
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
@@ -442,3 +461,4 @@ if __name__ == "__main__":
     server_thread.start()
     
     loop.run_until_complete(main())
+
