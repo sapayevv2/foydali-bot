@@ -313,6 +313,15 @@ async def process_input_handler(message: types.Message):
                 await message.answer(f"❌ Xatolik: {e}")
 
 async def finalize_login(message: types.Message, client: Client, user_id: int, phone: str):
+    if user_id in active_clients:
+        try:
+            await active_clients[user_id].stop()
+        except Exception:
+            pass
+
+    # Clientni to'liq ishga tushirib kutamiz
+    await client.start()
+    
     me = await client.get_me()
     
     connected_accounts[user_id] = {
@@ -322,23 +331,17 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
         "username": f"@{me.username}" if me.username else "Mavjud emas"
     }
     
-    del user_data[user_id]
-
-    try:
-        await client.disconnect()
-    except Exception:
-        pass
+    if user_id in user_data:
+        del user_data[user_id]
 
     setup_pyrogram_listeners(client, user_id)
     active_clients[user_id] = client
-
-    asyncio.create_task(client.start())
 
     await message.answer(f"✅ **Akkaunt muvaffaqiyatli ulandi va ishga tushdi!**\n\nIsm: {me.first_name}\nID: `{me.id}`", parse_mode="Markdown")
     await message.answer(
         "⚡ **.u funksiyasi faollashdi!**\n\n"
         "• Oddiy mention: `.u`\n"
-        "• Matnli mention: `.u Salom hammaga`\n"
+        "• Matnli mention: `.u Salom`\n"
         "• To'xtatish: `.su`",
         reply_markup=main_keyboard
     )
@@ -351,13 +354,11 @@ def setup_pyrogram_listeners(client: Client, user_id: int):
     async def handle_commands(c: Client, msg: PyroMessage):
         cmd = msg.text.strip()
 
-        # .u bilan boshlanadigan barcha buyruqlarni ushlaymiz
         if cmd == ".u" or cmd.startswith(".u "):
             if mention_flags.get(user_id, False):
                 await msg.reply_text("⚠️ Mention davom etmoqda. To'xtatish uchun `.su` yuboring.")
                 return
 
-            # .u dan keyingi matnni to'liq ajratib olamiz
             custom_text = ""
             if cmd.startswith(".u "):
                 custom_text = cmd[3:].strip()
@@ -394,7 +395,7 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
                 name = member.user.first_name or "Foydalanuvchi"
                 user_mention = f"[{name}](tg://user?id={member.user.id})"
 
-            # 🔥 Agar custom_text mavjud bo'lsa mention bilan birga yuboriladi
+            # 🔥 .u dan keyin yozilgan so'zni mention yoniga qo'shish
             if custom_text:
                 text_to_send = f"{user_mention} {custom_text}"
             else:
@@ -441,4 +442,3 @@ if __name__ == "__main__":
     server_thread.start()
     
     loop.run_until_complete(main())
-
