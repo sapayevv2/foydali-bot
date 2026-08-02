@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import threading
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -341,42 +342,37 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int):
     finally:
         mention_flags[user_id] = False
 
-# ----------------- RENDER VA UPTIMEROBOT VEB-SERVERI -----------------
+# ----------------- THREADING WEB SERVER (RENDER & UPTIME FIX) -----------------
 
 async def handle_ping(request):
-    """UptimeRobot ping yuborganda ushbu funksiya javob beradi va botni 'UP' tutadi."""
     return web.Response(text="Bot runs fine!")
 
-async def start_web_server():
+def run_web_server():
+    """Veb-serverni alohida thread'da va o'zining shaxsiy loop'ida ishga tushirish."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     app = web.Application()
     app.router.add_get("/", handle_ping)
     
     port = int(os.environ.get("PORT", 8080))
     runner = web.AppRunner(app)
-    await runner.setup()
+    loop.run_until_complete(runner.setup())
     site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    print(f"Veb-server {port}-portda muvaffaqiyatli ishga tushdi!")
-
-# ----------------- ISHGA TUSHIRISH (EVENT LOOP FIX) -----------------
+    loop.run_until_complete(site.start())
+    print(f"Veb-server {port}-portda alohida Thread'da ishga tushdi!")
+    loop.run_forever()
 
 async def main():
-    # 1. Veb-serverni ishga tushiramiz (Render portni zudlik bilan ko'rishi uchun)
-    await start_web_server()
-    
-    # 2. Aiogram pollingni boshlaymiz
     print("Bot muvaffaqiyatli ishga tushdi!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    # Python 3.10+ va Pyrogram event loop to'qnashuvini to'liq hal qilish:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    # 1. Veb-serverni alohida potokda (background thread) zudlik bilan ishga tushiramiz
+    server_thread = threading.Thread(target=run_web_server, daemon=True)
+    server_thread.start()
     
-    try:
-        loop.run_until_complete(main())
-    except (KeyboardInterrupt, SystemExit):
-        pass
-    finally:
-        loop.close()
+    # 2. Botni asosiy thread'da yurgizamiz
+    asyncio.run(main())
+
 
