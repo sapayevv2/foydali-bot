@@ -356,24 +356,27 @@ async def start_web_server():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
+    print(f"Veb-server {port}-portda muvaffaqiyatli ishga tushdi!")
 
 # ----------------- ISHGA TUSHIRISH (EVENT LOOP FIX) -----------------
 
 async def main():
-    # Veb-serverni fonda ishga tushirish
+    # 1. Veb-serverni ishga tushiramiz (Render portni zudlik bilan ko'rishi uchun)
     await start_web_server()
-    print("Veb-server Render uchun ishga tushdi!")
     
-    # Bot pollingni boshlash
+    # 2. Aiogram pollingni boshlaymiz
     print("Bot muvaffaqiyatli ishga tushdi!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
+    # Python 3.10+ va Pyrogram event loop to'qnashuvini to'liq hal qilish:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    
     try:
         loop.run_until_complete(main())
     except (KeyboardInterrupt, SystemExit):
         pass
     finally:
         loop.close()
+
