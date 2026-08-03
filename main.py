@@ -89,27 +89,41 @@ async def check_user_subscription(user_id: int) -> bool:
         return True
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        # Faqatgina a'zo bo'lgan holatlarni qabul qilamiz (left yoki kicked bo'lsa False qaytadi)
         if member.status in ["member", "administrator", "creator"]:
             return True
     except Exception:
         return False
     return False
 
-async def ask_to_subscribe(message: types.Message):
+async def ask_to_subscribe(event: TelegramObject):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/foydaliku_kanali")],
             [InlineKeyboardButton(text="✅ Obuna bo'ldim", callback_data="check_sub")]
         ]
     )
-    await message.answer(
-        "⚠️ Botdan foydalanish uchun quyidagi kanalga obuna bo'lishingiz kerak:\n\n"
+    
+    text = (
+        "⚠️ Botdan to'liq foydalanish uchun quyidagi kanalga obuna bo'lishingiz shart:\n\n"
         "👉 @foydaliku_kanali\n\n"
-        "Kanalga a'zo bo'lgach, «✅ Obuna bo'ldim» tugmasini bosing.",
-        reply_markup=keyboard
+        "Kanalga a'zo bo'lgach, pastdagi «✅ Obuna bo'ldim» tugmasini bosing."
     )
 
-# ----------------- GLOBAL MIDDLEWARE (ASOSIY QISM) -----------------
+    if isinstance(event, types.Message):
+        try:
+            await event.answer(text, reply_markup=keyboard)
+        except Exception:
+            pass
+    elif isinstance(event, types.CallbackQuery):
+        try:
+            # Agar foydalanuvchi allaqachon ochiq xabarga turgan bo'lsa, uni ogohlantiramiz
+            await event.message.answer(text, reply_markup=keyboard)
+            await event.answer("⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
+        except Exception:
+            pass
+
+# ----------------- GLOBAL MIDDLEWARE -----------------
 class SubscriptionMiddleware:
     async def __call__(
         self,
@@ -117,21 +131,26 @@ class SubscriptionMiddleware:
         event: TelegramObject,
         data: Dict[str, Any]
     ) -> Any:
-        # Agar kelgan narsa Xabar (Message) bo'lsa
+        user = None
         if isinstance(event, types.Message):
             user = event.from_user
-            if user:
-                # Agar /smsall buyrug'i yoki inline tugmadagi "check_sub" bo'lsa yoki admin bo'lsa o'tkazib yuborish mumkin, 
-                # lekin to'liq talab bo'yicha hammasini tekshiramiz:
-                if not await check_user_subscription(user.id):
-                    # Agar foydalanuvchi "✅ Obuna bo'ldim" yoki shunga o'xshash holatda bo'lmasa, obuna so'raymiz
-                    await ask_to_subscribe(event)
-                    return # Handler ishlamaydi, shu yerda to'xtaydi!
+        elif isinstance(event, types.CallbackQuery):
+            user = event.from_user
+            # "check_sub" tugmasi bosilganda obunani tekshirishga ruxsat beramiz
+            if event.data == "check_sub":
+                return await handler(event, data)
+
+        if user:
+            # Har bir xabar va tugma bosilganda obuna statusi yangidan tekshiriladi
+            if not await check_user_subscription(user.id):
+                await ask_to_subscribe(event)
+                return  # Obuna bo'lmagan bo'lsa, buyruq yoki tugma bajarilmaydi
 
         return await handler(event, data)
 
-# Middleware'ni ro'yxatdan o'tkazamiz
+# Middleware'ni ro'yxatdan o'tkazish
 dp.message.middleware(SubscriptionMiddleware())
+dp.callback_query.middleware(SubscriptionMiddleware())
 
 # ----------------- KEYBOARDLAR -----------------
 main_keyboard = ReplyKeyboardMarkup(
@@ -477,6 +496,7 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
         "⚡ **Buyruqlar faollashdi!**\n\n"
         "• Oddiy utag: `.u`\n"
         "• Matnli utag: `.u Sizning so'zingiz`\n"
+        "• KETMA-KET utag: `.ru`\n"
         "• To'xtatish: `.su`",
         reply_markup=main_keyboard
     )
@@ -624,6 +644,7 @@ if __name__ == "__main__":
         asyncio.set_event_loop(loop)
         
     loop.run_until_complete(main())
+
 
 
 
