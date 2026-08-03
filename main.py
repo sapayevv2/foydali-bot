@@ -3,10 +3,11 @@ import os
 import re
 import threading
 import sqlite3
+from typing import Callable, Dict, Any, Awaitable
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, TelegramObject
 from pyrogram import Client, filters
 from pyrogram.types import Message as PyroMessage
 from pyrogram.errors import (
@@ -108,15 +109,29 @@ async def ask_to_subscribe(message: types.Message):
         reply_markup=keyboard
     )
 
-# Obunani tekshiruvchi dekorator
-def restricted(func):
-    async def wrapper(message: types.Message, *args, **kwargs):
-        user_id = message.from_user.id
-        if not await check_user_subscription(user_id):
-            await ask_to_subscribe(message)
-            return
-        return await func(message, *args, **kwargs)
-    return wrapper
+# ----------------- GLOBAL MIDDLEWARE (ASOSIY QISM) -----------------
+class SubscriptionMiddleware:
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: Dict[str, Any]
+    ) -> Any:
+        # Agar kelgan narsa Xabar (Message) bo'lsa
+        if isinstance(event, types.Message):
+            user = event.from_user
+            if user:
+                # Agar /smsall buyrug'i yoki inline tugmadagi "check_sub" bo'lsa yoki admin bo'lsa o'tkazib yuborish mumkin, 
+                # lekin to'liq talab bo'yicha hammasini tekshiramiz:
+                if not await check_user_subscription(user.id):
+                    # Agar foydalanuvchi "✅ Obuna bo'ldim" yoki shunga o'xshash holatda bo'lmasa, obuna so'raymiz
+                    await ask_to_subscribe(event)
+                    return # Handler ishlamaydi, shu yerda to'xtaydi!
+
+        return await handler(event, data)
+
+# Middleware'ni ro'yxatdan o'tkazamiz
+dp.message.middleware(SubscriptionMiddleware())
 
 # ----------------- KEYBOARDLAR -----------------
 main_keyboard = ReplyKeyboardMarkup(
@@ -194,7 +209,6 @@ async def check_subscription_callback(callback: types.CallbackQuery):
 
 @dp.message(F.text == "⬅️ Bosh menyu")
 @dp.message(Command("start"))
-@restricted
 async def start_and_back_handler(message: types.Message):
     user_id = message.from_user.id
     add_user_to_db(user_id)
@@ -213,7 +227,6 @@ async def start_and_back_handler(message: types.Message):
     )
 
 @dp.message(F.text == "👨‍💻 Bot owner")
-@restricted
 async def owner_handler(message: types.Message):
     text = (
         "👨‍💻 **Bot Dasturchisi va Egasiga Bog'lanish:**\n\n"
@@ -222,7 +235,6 @@ async def owner_handler(message: types.Message):
     await message.answer(text, reply_markup=main_keyboard, parse_mode="Markdown")
 
 @dp.message(F.text == "👤 Akkauntim")
-@restricted
 async def accounts_handler(message: types.Message):
     user_id = message.from_user.id
 
@@ -247,7 +259,6 @@ async def accounts_handler(message: types.Message):
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
 
 @dp.message(F.text == "❌ Akkauntni o'chirish")
-@restricted
 async def remove_account_handler(message: types.Message):
     user_id = message.from_user.id
     session_name = f"user_session_{user_id}"
@@ -276,7 +287,6 @@ async def remove_account_handler(message: types.Message):
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
 
 @dp.message(F.text == "➕ Yangi akkaunt qo'shish")
-@restricted
 async def add_account_handler(message: types.Message):
     user_id = message.from_user.id
     if user_id in connected_accounts and connected_accounts[user_id]:
@@ -290,7 +300,6 @@ async def add_account_handler(message: types.Message):
     await message.answer(text, reply_markup=add_acc_keyboard, parse_mode="Markdown")
 
 @dp.message(F.text == "📞 Telefon orqali")
-@restricted
 async def phone_option_handler(message: types.Message):
     text = (
         "📱 **Telefon orqali ulash**\n\n"
@@ -300,12 +309,10 @@ async def phone_option_handler(message: types.Message):
     await message.answer(text, reply_markup=phone_keyboard, parse_mode="Markdown")
 
 @dp.message(F.contact)
-@restricted
 async def contact_handler(message: types.Message):
     await process_phone_number(message, message.contact.phone_number)
 
 @dp.message(F.text.regexp(r'^\+?[0-9]{10,15}$'))
-@restricted
 async def text_phone_handler(message: types.Message):
     await process_phone_number(message, message.text.strip())
 
@@ -411,7 +418,6 @@ async def smsall_command_handler(message: types.Message):
     )
 
 @dp.message(F.text)
-@restricted
 async def process_input_handler(message: types.Message):
     user_id = message.from_user.id
 
@@ -471,7 +477,6 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
         "⚡ **Buyruqlar faollashdi!**\n\n"
         "• Oddiy utag: `.u`\n"
         "• Matnli utag: `.u Sizning so'zingiz`\n"
-        "• KETMA-KET utag: `.ru`\n"
         "• To'xtatish: `.su`",
         reply_markup=main_keyboard
     )
@@ -619,5 +624,6 @@ if __name__ == "__main__":
         asyncio.set_event_loop(loop)
         
     loop.run_until_complete(main())
+
 
 
