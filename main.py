@@ -18,7 +18,7 @@ from pyrogram.errors import (
 )
 
 # ----------------- SOZLAMALAR -----------------
-BOT_TOKEN = "8606815133:AAEOwCYrpOKrbsvdlBy6alEDvV_G00JhK64"
+BOT_TOKEN = "8606815133:AAEHY0l5iWocDIC0CT5oxJ9DCEd8SyS5s4A"
 
 API_ID = 34424037
 API_HASH = "a2688add3c49c5015c996012b3a2dba3"
