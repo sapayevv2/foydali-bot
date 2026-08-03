@@ -140,7 +140,7 @@ class SubscriptionMiddleware:
         if user:
             if not await check_user_subscription(user.id):
                 await ask_to_subscribe(event)
-                return  # Obuna bo'lmagan bo'lsa, hech qanday handler ishlamaydi!
+                return
 
         return await handler(event, data)
 
@@ -603,7 +603,7 @@ def run_web_server():
     app = web.Application()
     app.router.add_get("/", handle_ping)
     
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     runner = web.AppRunner(app)
     server_loop.run_until_complete(runner.setup())
     site = web.TCPSite(runner, "0.0.0.0", port)
@@ -613,6 +613,7 @@ def run_web_server():
 
 async def main():
     db_start()
+    await bot.delete_webhook(drop_pending_updates=True)
     print("Bot muvaffaqiyatli ishga tushdi!")
     await dp.start_polling(bot)
 
@@ -620,15 +621,4 @@ if __name__ == "__main__":
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
     
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-    loop.run_until_complete(main())
-
-
-
-
-
+    asyncio.run(main())
