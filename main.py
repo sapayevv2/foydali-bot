@@ -1,7 +1,6 @@
 import asyncio
 import os
 import re
-import threading
 import sqlite3
 from typing import Callable, Dict, Any, Awaitable
 from aiohttp import web
@@ -591,27 +590,31 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
     finally:
         mention_flags[user_id] = False
 
-# ----------------- WEB SERVER (XATOSIZ) -----------------
+# ----------------- WEB SERVER VA ASOSIY LOOP (RENDER UCHUN) -----------------
 
 async def handle_ping(request):
     return web.Response(text="Bot runs fine!")
 
-def run_web_server():
+async def web_server_task():
     app = web.Application()
     app.router.add_get("/", handle_ping)
-    
+    runner = web.AppRunner(app)
+    await runner.setup()
     port = int(os.environ.get("PORT", 10000))
-    web.run_app(app, host="0.0.0.0", port=port, print=False)
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"Veb-server {port}-portda ishga tushdi!")
 
 async def main():
     db_start()
     await bot.delete_webhook(drop_pending_updates=True)
     print("Bot muvaffaqiyatli ishga tushdi!")
-    await dp.start_polling(bot)
+    
+    # Veb-server va bot polingini bitta event loop'da parallel yurgizamiz
+    await asyncio.gather(
+        web_server_task(),
+        dp.start_polling(bot)
+    )
 
 if __name__ == "__main__":
-    server_thread = threading.Thread(target=run_web_server, daemon=True)
-    server_thread.start()
-    
     asyncio.run(main())
-
