@@ -89,7 +89,6 @@ async def check_user_subscription(user_id: int) -> bool:
         return True
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        # Faqatgina a'zo bo'lgan holatlarni qabul qilamiz (left yoki kicked bo'lsa False qaytadi)
         if member.status in ["member", "administrator", "creator"]:
             return True
     except Exception:
@@ -117,7 +116,6 @@ async def ask_to_subscribe(event: TelegramObject):
             pass
     elif isinstance(event, types.CallbackQuery):
         try:
-            # Agar foydalanuvchi allaqachon ochiq xabarga turgan bo'lsa, uni ogohlantiramiz
             await event.message.answer(text, reply_markup=keyboard)
             await event.answer("⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
         except Exception:
@@ -136,19 +134,16 @@ class SubscriptionMiddleware:
             user = event.from_user
         elif isinstance(event, types.CallbackQuery):
             user = event.from_user
-            # "check_sub" tugmasi bosilganda obunani tekshirishga ruxsat beramiz
             if event.data == "check_sub":
                 return await handler(event, data)
 
         if user:
-            # Har bir xabar va tugma bosilganda obuna statusi yangidan tekshiriladi
             if not await check_user_subscription(user.id):
                 await ask_to_subscribe(event)
-                return  # Obuna bo'lmagan bo'lsa, buyruq yoki tugma bajarilmaydi
+                return  # Obuna bo'lmagan bo'lsa, hech qanday handler ishlamaydi!
 
         return await handler(event, data)
 
-# Middleware'ni ro'yxatdan o'tkazish
 dp.message.middleware(SubscriptionMiddleware())
 dp.callback_query.middleware(SubscriptionMiddleware())
 
@@ -519,15 +514,6 @@ def setup_pyrogram_listeners(client: Client, user_id: int):
                 await msg.reply_text("ℹ️ Hozirda faol utag yo'q.")
             return
 
-        if cmd == ".ru":
-            if mention_flags.get(user_id, False):
-                await msg.reply_text("⚠️ Utag davom etmoqda. To'xtatish uchun `.su` yuboring.")
-                return
-
-            mention_flags[user_id] = True
-            asyncio.create_task(run_mention_loop(c, msg, user_id, use_sequential_phrases=True))
-            return
-
         if cmd == ".u" or cmd.startswith(".u "):
             if mention_flags.get(user_id, False):
                 await msg.reply_text("⚠️ Utag davom etmoqda. To'xtatish uchun `.su` yuboring.")
@@ -535,10 +521,10 @@ def setup_pyrogram_listeners(client: Client, user_id: int):
 
             custom_text = cmd[3:].strip() if cmd.startswith(".u ") else ""
             mention_flags[user_id] = True
-            asyncio.create_task(run_mention_loop(c, msg, user_id, custom_text, use_sequential_phrases=False))
+            asyncio.create_task(run_mention_loop(c, msg, user_id, custom_text))
             return
 
-async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custom_text: str = "", use_sequential_phrases: bool = False):
+async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custom_text: str = ""):
     chat_id = msg.chat.id
     
     try:
@@ -568,14 +554,12 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
                 user_mention = f"[{name}](tg://user?id={user.id})"
 
             try:
-                if use_sequential_phrases and PHRASES_LIST:
+                if custom_text:
+                    text_to_send = f"{user_mention} {custom_text}"
+                else:
                     phrase_index = count % total_phrases 
                     phrase = PHRASES_LIST[phrase_index]
                     text_to_send = f"{user_mention} {phrase}"
-                elif custom_text:
-                    text_to_send = f"{user_mention} {custom_text}"
-                else:
-                    text_to_send = user_mention
             except Exception:
                 text_to_send = user_mention
 
@@ -643,6 +627,7 @@ if __name__ == "__main__":
         asyncio.set_event_loop(loop)
         
     loop.run_until_complete(main())
+
 
 
 
