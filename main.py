@@ -1,7 +1,7 @@
 import asyncio
 
 # Pyrogram import bo'lishidan avval event loop yaratamiz (CRITICAL FIX)
-try:
+tr
     loop = asyncio.get_event_loop()
 except RuntimeError:
     loop = asyncio.new_event_loop()
