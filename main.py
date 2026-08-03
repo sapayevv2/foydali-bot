@@ -591,25 +591,17 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
     finally:
         mention_flags[user_id] = False
 
-# ----------------- WEB SERVER -----------------
+# ----------------- WEB SERVER (XATOSIZ) -----------------
 
 async def handle_ping(request):
     return web.Response(text="Bot runs fine!")
 
 def run_web_server():
-    server_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(server_loop)
-    
     app = web.Application()
     app.router.add_get("/", handle_ping)
     
     port = int(os.environ.get("PORT", 10000))
-    runner = web.AppRunner(app)
-    server_loop.run_until_complete(runner.setup())
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    server_loop.run_until_complete(site.start())
-    print(f"Veb-server {port}-portda ishga tushdi!")
-    server_loop.run_forever()
+    web.run_app(app, host="0.0.0.0", port=port, print=False)
 
 async def main():
     db_start()
@@ -622,3 +614,4 @@ if __name__ == "__main__":
     server_thread.start()
     
     asyncio.run(main())
+
