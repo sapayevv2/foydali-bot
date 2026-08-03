@@ -246,7 +246,6 @@ async def process_phone_number(message: types.Message, phone: str):
         
         err_str = str(e)
         
-        # FLOOD_WAIT (ko'p urinish cheklovi) xatoligi yuz berganda
         if "FLOOD_WAIT" in err_str or "420" in err_str:
             seconds_match = re.search(r'(\d+)', err_str)
             seconds = int(seconds_match.group(1)) if seconds_match else 60000
@@ -447,4 +446,5 @@ if __name__ == "__main__":
     server_thread.start()
     
     loop.run_until_complete(main())
+
 
