@@ -490,7 +490,6 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
         "⚡ **Buyruqlar faollashdi!**\n\n"
         "• Oddiy utag: `.u`\n"
         "• Matnli utag: `.u Sizning so'zingiz`\n"
-        "• KETMA-KET utag: `.ru`\n"
         "• To'xtatish: `.su`",
         reply_markup=main_keyboard
     )
