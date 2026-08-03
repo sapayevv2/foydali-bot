@@ -82,16 +82,16 @@ def add_user_to_db(user_id: int):
     except Exception:
         pass
 
-# ----------------- OBUNANI TEKSHIRISH FUNKSIYASI -----------------
+# ----------------- OBUNANI TEKSHIRISH -----------------
 async def check_user_subscription(user_id: int) -> bool:
     if user_id == ADMIN_ID:
         return True
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        if member.status not in ["left", "kicked"]:
+        if member.status in ["member", "administrator", "creator"]:
             return True
     except Exception:
-        return True 
+        return False
     return False
 
 async def ask_to_subscribe(message: types.Message):
@@ -101,13 +101,22 @@ async def ask_to_subscribe(message: types.Message):
             [InlineKeyboardButton(text="✅ Obuna bo'ldim", callback_data="check_sub")]
         ]
     )
-    # Parse mode ishlatilmadi, shuning uchun xatolik chiqmaydi
     await message.answer(
         "⚠️ Botdan foydalanish uchun quyidagi kanalga obuna bo'lishingiz kerak:\n\n"
         "👉 @foydaliku_kanali\n\n"
         "Kanalga a'zo bo'lgach, «✅ Obuna bo'ldim» tugmasini bosing.",
         reply_markup=keyboard
     )
+
+# Obunani tekshiruvchi dekorator
+def restricted(func):
+    async def wrapper(message: types.Message, *args, **kwargs):
+        user_id = message.from_user.id
+        if not await check_user_subscription(user_id):
+            await ask_to_subscribe(message)
+            return
+        return await func(message, *args, **kwargs)
+    return wrapper
 
 # ----------------- KEYBOARDLAR -----------------
 main_keyboard = ReplyKeyboardMarkup(
@@ -185,13 +194,9 @@ async def check_subscription_callback(callback: types.CallbackQuery):
 
 @dp.message(F.text == "⬅️ Bosh menyu")
 @dp.message(Command("start"))
+@restricted
 async def start_and_back_handler(message: types.Message):
     user_id = message.from_user.id
-    
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
     add_user_to_db(user_id)
 
     if user_id in user_data:
@@ -208,12 +213,8 @@ async def start_and_back_handler(message: types.Message):
     )
 
 @dp.message(F.text == "👨‍💻 Bot owner")
+@restricted
 async def owner_handler(message: types.Message):
-    user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
     text = (
         "👨‍💻 **Bot Dasturchisi va Egasiga Bog'lanish:**\n\n"
         "Telegram: @sapayevv2"
@@ -221,11 +222,9 @@ async def owner_handler(message: types.Message):
     await message.answer(text, reply_markup=main_keyboard, parse_mode="Markdown")
 
 @dp.message(F.text == "👤 Akkauntim")
+@restricted
 async def accounts_handler(message: types.Message):
     user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
 
     if user_id in connected_accounts and connected_accounts[user_id]:
         acc = connected_accounts[user_id]
@@ -248,12 +247,9 @@ async def accounts_handler(message: types.Message):
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
 
 @dp.message(F.text == "❌ Akkauntni o'chirish")
+@restricted
 async def remove_account_handler(message: types.Message):
     user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
     session_name = f"user_session_{user_id}"
     mention_flags[user_id] = False
 
@@ -280,12 +276,9 @@ async def remove_account_handler(message: types.Message):
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
 
 @dp.message(F.text == "➕ Yangi akkaunt qo'shish")
+@restricted
 async def add_account_handler(message: types.Message):
     user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
     if user_id in connected_accounts and connected_accounts[user_id]:
         await message.answer(
             "⚠️ **Sizda allaqachon akkaunt ulangan!**",
@@ -297,12 +290,8 @@ async def add_account_handler(message: types.Message):
     await message.answer(text, reply_markup=add_acc_keyboard, parse_mode="Markdown")
 
 @dp.message(F.text == "📞 Telefon orqali")
+@restricted
 async def phone_option_handler(message: types.Message):
-    user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
     text = (
         "📱 **Telefon orqali ulash**\n\n"
         "Telefon raqamingizni yuboring (masalan: `+998901234567`)\n"
@@ -311,19 +300,13 @@ async def phone_option_handler(message: types.Message):
     await message.answer(text, reply_markup=phone_keyboard, parse_mode="Markdown")
 
 @dp.message(F.contact)
+@restricted
 async def contact_handler(message: types.Message):
-    user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
     await process_phone_number(message, message.contact.phone_number)
 
 @dp.message(F.text.regexp(r'^\+?[0-9]{10,15}$'))
+@restricted
 async def text_phone_handler(message: types.Message):
-    user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
     await process_phone_number(message, message.text.strip())
 
 async def process_phone_number(message: types.Message, phone: str):
@@ -428,11 +411,9 @@ async def smsall_command_handler(message: types.Message):
     )
 
 @dp.message(F.text)
+@restricted
 async def process_input_handler(message: types.Message):
     user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
 
     if user_id not in user_data:
         return
@@ -490,6 +471,7 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
         "⚡ **Buyruqlar faollashdi!**\n\n"
         "• Oddiy utag: `.u`\n"
         "• Matnli utag: `.u Sizning so'zingiz`\n"
+        "• KETMA-KET utag: `.ru`\n"
         "• To'xtatish: `.su`",
         reply_markup=main_keyboard
     )
@@ -637,4 +619,5 @@ if __name__ == "__main__":
         asyncio.set_event_loop(loop)
         
     loop.run_until_complete(main())
+
 
