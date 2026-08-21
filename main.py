@@ -27,8 +27,8 @@ from pyrogram.errors import (
 # ----------------- SOZLAMALAR -----------------
 BOT_TOKEN = "8606815133:AAEHY0l5iWocDIC0CT5oxJ9DCEd8SyS5s4A"
 
-API_ID = 34424037
-API_HASH = "a2688add3c49c5015c996012b3a2dba3"
+API_ID = 30190324
+API_HASH = "b9ea2523ad5edda79ab68b4c5632e9dc"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
