@@ -616,5 +616,13 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.create_task(main())
+        else:
+            loop.run_until_complete(main())
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(main())
