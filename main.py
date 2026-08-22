@@ -62,7 +62,7 @@ PHRASES_LIST = [
 
 # ----------------- SQLITE BAZA -----------------
 def db_start():
-    conn = sqlite3.connect("bot_users.db", timeout=30.0)
+    conn = sqlite3.connect("bot_users.db")
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -74,7 +74,7 @@ def db_start():
 
 def add_user_to_db(user_id: int):
     try:
-        conn = sqlite3.connect("bot_users.db", timeout=30.0)
+        conn = sqlite3.connect("bot_users.db")
         cursor = conn.cursor()
         cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
         conn.commit()
@@ -401,7 +401,7 @@ async def smsall_command_handler(message: types.Message):
         await message.answer("❌ Yuborish uchun matn kiritmadingiz!\nNamuna: `/smsall Salom hammaga!`", parse_mode="Markdown")
         return
 
-    conn = sqlite3.connect("bot_users.db", timeout=30.0)
+    conn = sqlite3.connect("bot_users.db")
     cursor = conn.cursor()
     cursor.execute("SELECT user_id FROM users")
     users = cursor.fetchall()
@@ -595,7 +595,11 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
-async def start_web_server():
+async def main():
+    db_start()
+    await bot.delete_webhook(drop_pending_updates=True)
+    
+    # Aiohttp veb-serverini ishga tushiramiz (Render portni ko'rishi uchun)
     app = web.Application()
     app.router.add_get("/", handle_ping)
     runner = web.AppRunner(app)
@@ -604,16 +608,11 @@ async def start_web_server():
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    print(f"Veb-server {port}-portda ishga tushdi!")
+    print(f"Veb-server {port}-portda ishga tushdi va Render port talabini bajardi!")
 
-async def main():
-    db_start()
-    await bot.delete_webhook(drop_pending_updates=True)
-    
-    await asyncio.gather(
-        start_web_server(),
-        dp.start_polling(bot)
-    )
+    # Bot polling va serverni birgalikda yurgizamiz
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
