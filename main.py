@@ -1,12 +1,12 @@
 import asyncio
 import os
 import re
+import threading
 import sqlite3
-from typing import Callable, Dict, Any, Awaitable
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, TelegramObject
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram import Client, filters
 from pyrogram.types import Message as PyroMessage
 from pyrogram.errors import (
@@ -17,7 +17,7 @@ from pyrogram.errors import (
 )
 
 # ----------------- SOZLAMALAR -----------------
-BOT_TOKEN = "8606815133:AAEHY0l5iWocDIC0CT5oxJ9DCEd8SyS5s4A"
+BOT_TOKEN = "8995038139:AAGbfl0eUNKJWm_BavdsWdAr-omsbmZaGhk"
 
 API_ID = 34424037
 API_HASH = "a2688add3c49c5015c996012b3a2dba3"
@@ -82,69 +82,32 @@ def add_user_to_db(user_id: int):
     except Exception:
         pass
 
-# ----------------- OBUNANI TEKSHIRISH -----------------
+# ----------------- OBUNANI TEKSHIRISH FUNKSIYASI -----------------
 async def check_user_subscription(user_id: int) -> bool:
     if user_id == ADMIN_ID:
         return True
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        if member.status in ["member", "administrator", "creator"]:
+        if member.status not in ["left", "kicked"]:
             return True
     except Exception:
-        return False
+        return True 
     return False
 
-async def ask_to_subscribe(event: TelegramObject):
+async def ask_to_subscribe(message: types.Message):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/foydaliku_kanali")],
             [InlineKeyboardButton(text="✅ Obuna bo'ldim", callback_data="check_sub")]
         ]
     )
-    
-    text = (
-        "⚠️ Botdan to'liq foydalanish uchun quyidagi kanalga obuna bo'lishingiz shart:\n\n"
+    # Parse mode ishlatilmadi, shuning uchun xatolik chiqmaydi
+    await message.answer(
+        "⚠️ Botdan foydalanish uchun quyidagi kanalga obuna bo'lishingiz kerak:\n\n"
         "👉 @foydaliku_kanali\n\n"
-        "Kanalga a'zo bo'lgach, pastdagi «✅ Obuna bo'ldim» tugmasini bosing."
+        "Kanalga a'zo bo'lgach, «✅ Obuna bo'ldim» tugmasini bosing.",
+        reply_markup=keyboard
     )
-
-    if isinstance(event, types.Message):
-        try:
-            await event.answer(text, reply_markup=keyboard)
-        except Exception:
-            pass
-    elif isinstance(event, types.CallbackQuery):
-        try:
-            await event.message.answer(text, reply_markup=keyboard)
-            await event.answer("⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
-        except Exception:
-            pass
-
-# ----------------- GLOBAL MIDDLEWARE -----------------
-class SubscriptionMiddleware:
-    async def __call__(
-        self,
-        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
-        event: TelegramObject,
-        data: Dict[str, Any]
-    ) -> Any:
-        user = None
-        if isinstance(event, types.Message):
-            user = event.from_user
-        elif isinstance(event, types.CallbackQuery):
-            user = event.from_user
-            if event.data == "check_sub":
-                return await handler(event, data)
-
-        if user:
-            if not await check_user_subscription(user.id):
-                await ask_to_subscribe(event)
-                return
-
-        return await handler(event, data)
-
-dp.message.middleware(SubscriptionMiddleware())
-dp.callback_query.middleware(SubscriptionMiddleware())
 
 # ----------------- KEYBOARDLAR -----------------
 main_keyboard = ReplyKeyboardMarkup(
@@ -224,6 +187,11 @@ async def check_subscription_callback(callback: types.CallbackQuery):
 @dp.message(Command("start"))
 async def start_and_back_handler(message: types.Message):
     user_id = message.from_user.id
+    
+    if not await check_user_subscription(user_id):
+        await ask_to_subscribe(message)
+        return
+
     add_user_to_db(user_id)
 
     if user_id in user_data:
@@ -241,6 +209,11 @@ async def start_and_back_handler(message: types.Message):
 
 @dp.message(F.text == "👨‍💻 Bot owner")
 async def owner_handler(message: types.Message):
+    user_id = message.from_user.id
+    if not await check_user_subscription(user_id):
+        await ask_to_subscribe(message)
+        return
+
     text = (
         "👨‍💻 **Bot Dasturchisi va Egasiga Bog'lanish:**\n\n"
         "Telegram: @sapayevv2"
@@ -250,6 +223,9 @@ async def owner_handler(message: types.Message):
 @dp.message(F.text == "👤 Akkauntim")
 async def accounts_handler(message: types.Message):
     user_id = message.from_user.id
+    if not await check_user_subscription(user_id):
+        await ask_to_subscribe(message)
+        return
 
     if user_id in connected_accounts and connected_accounts[user_id]:
         acc = connected_accounts[user_id]
@@ -274,6 +250,10 @@ async def accounts_handler(message: types.Message):
 @dp.message(F.text == "❌ Akkauntni o'chirish")
 async def remove_account_handler(message: types.Message):
     user_id = message.from_user.id
+    if not await check_user_subscription(user_id):
+        await ask_to_subscribe(message)
+        return
+
     session_name = f"user_session_{user_id}"
     mention_flags[user_id] = False
 
@@ -302,6 +282,10 @@ async def remove_account_handler(message: types.Message):
 @dp.message(F.text == "➕ Yangi akkaunt qo'shish")
 async def add_account_handler(message: types.Message):
     user_id = message.from_user.id
+    if not await check_user_subscription(user_id):
+        await ask_to_subscribe(message)
+        return
+
     if user_id in connected_accounts and connected_accounts[user_id]:
         await message.answer(
             "⚠️ **Sizda allaqachon akkaunt ulangan!**",
@@ -314,6 +298,11 @@ async def add_account_handler(message: types.Message):
 
 @dp.message(F.text == "📞 Telefon orqali")
 async def phone_option_handler(message: types.Message):
+    user_id = message.from_user.id
+    if not await check_user_subscription(user_id):
+        await ask_to_subscribe(message)
+        return
+
     text = (
         "📱 **Telefon orqali ulash**\n\n"
         "Telefon raqamingizni yuboring (masalan: `+998901234567`)\n"
@@ -323,10 +312,18 @@ async def phone_option_handler(message: types.Message):
 
 @dp.message(F.contact)
 async def contact_handler(message: types.Message):
+    user_id = message.from_user.id
+    if not await check_user_subscription(user_id):
+        await ask_to_subscribe(message)
+        return
     await process_phone_number(message, message.contact.phone_number)
 
 @dp.message(F.text.regexp(r'^\+?[0-9]{10,15}$'))
 async def text_phone_handler(message: types.Message):
+    user_id = message.from_user.id
+    if not await check_user_subscription(user_id):
+        await ask_to_subscribe(message)
+        return
     await process_phone_number(message, message.text.strip())
 
 async def process_phone_number(message: types.Message, phone: str):
@@ -433,6 +430,9 @@ async def smsall_command_handler(message: types.Message):
 @dp.message(F.text)
 async def process_input_handler(message: types.Message):
     user_id = message.from_user.id
+    if not await check_user_subscription(user_id):
+        await ask_to_subscribe(message)
+        return
 
     if user_id not in user_data:
         return
@@ -490,6 +490,7 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
         "⚡ **Buyruqlar faollashdi!**\n\n"
         "• Oddiy utag: `.u`\n"
         "• Matnli utag: `.u Sizning so'zingiz`\n"
+        "• KETMA-KET utag: `.ru`\n"
         "• To'xtatish: `.su`",
         reply_markup=main_keyboard
     )
@@ -513,6 +514,15 @@ def setup_pyrogram_listeners(client: Client, user_id: int):
                 await msg.reply_text("ℹ️ Hozirda faol utag yo'q.")
             return
 
+        if cmd == ".ru":
+            if mention_flags.get(user_id, False):
+                await msg.reply_text("⚠️ Utag davom etmoqda. To'xtatish uchun `.su` yuboring.")
+                return
+
+            mention_flags[user_id] = True
+            asyncio.create_task(run_mention_loop(c, msg, user_id, use_sequential_phrases=True))
+            return
+
         if cmd == ".u" or cmd.startswith(".u "):
             if mention_flags.get(user_id, False):
                 await msg.reply_text("⚠️ Utag davom etmoqda. To'xtatish uchun `.su` yuboring.")
@@ -520,10 +530,10 @@ def setup_pyrogram_listeners(client: Client, user_id: int):
 
             custom_text = cmd[3:].strip() if cmd.startswith(".u ") else ""
             mention_flags[user_id] = True
-            asyncio.create_task(run_mention_loop(c, msg, user_id, custom_text))
+            asyncio.create_task(run_mention_loop(c, msg, user_id, custom_text, use_sequential_phrases=False))
             return
 
-async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custom_text: str = ""):
+async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custom_text: str = "", use_sequential_phrases: bool = False):
     chat_id = msg.chat.id
     
     try:
@@ -553,12 +563,14 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
                 user_mention = f"[{name}](tg://user?id={user.id})"
 
             try:
-                if custom_text:
-                    text_to_send = f"{user_mention} {custom_text}"
-                else:
+                if use_sequential_phrases and PHRASES_LIST:
                     phrase_index = count % total_phrases 
                     phrase = PHRASES_LIST[phrase_index]
                     text_to_send = f"{user_mention} {phrase}"
+                elif custom_text:
+                    text_to_send = f"{user_mention} {custom_text}"
+                else:
+                    text_to_send = user_mention
             except Exception:
                 text_to_send = user_mention
 
@@ -590,29 +602,41 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
     finally:
         mention_flags[user_id] = False
 
-# ----------------- WEB SERVER VA ASOSIY LOOP -----------------
+# ----------------- WEB SERVER -----------------
 
 async def handle_ping(request):
-    return web.Response(text="Bot is running!")
+    return web.Response(text="Bot runs fine!")
+
+def run_web_server():
+    server_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(server_loop)
+    
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    
+    port = int(os.environ.get("PORT", 8080))
+    runner = web.AppRunner(app)
+    server_loop.run_until_complete(runner.setup())
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    server_loop.run_until_complete(site.start())
+    print(f"Veb-server {port}-portda ishga tushdi!")
+    server_loop.run_forever()
 
 async def main():
     db_start()
-    await bot.delete_webhook(drop_pending_updates=True)
-    
-    # Aiohttp veb-serverini ishga tushiramiz (Render portni ko'rishi uchun)
-    app = web.Application()
-    app.router.add_get("/", handle_ping)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    
-    port = int(os.environ.get("PORT", 10000))
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    print(f"Veb-server {port}-portda ishga tushdi va Render port talabini bajardi!")
-
-    # Bot polling va serverni birgalikda yurgizamiz
+    print("Bot muvaffaqiyatli ishga tushdi!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    server_thread = threading.Thread(target=run_web_server, daemon=True)
+    server_thread.start()
+    
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+    loop.run_until_complete(main())
+
 
