@@ -599,7 +599,6 @@ async def main():
     db_start()
     await bot.delete_webhook(drop_pending_updates=True)
     
-    # Aiohttp veb-serverini ishga tushiramiz (Render portni ko'rishi uchun)
     app = web.Application()
     app.router.add_get("/", handle_ping)
     runner = web.AppRunner(app)
@@ -610,13 +609,8 @@ async def main():
     await site.start()
     print(f"Veb-server {port}-portda ishga tushdi va Render port talabini bajardi!")
 
-    # Bot polling va serverni birgalikda yurgizamiz
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        pass
+    asyncio.run(main())
+
