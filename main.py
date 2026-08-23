@@ -1,4 +1,5 @@
 import asyncio
+import random
 import os
 import re
 import threading
@@ -6,7 +7,7 @@ import sqlite3
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from pyrogram import Client, filters
 from pyrogram.types import Message as PyroMessage
 from pyrogram.errors import (
@@ -19,13 +20,10 @@ from pyrogram.errors import (
 # ----------------- SOZLAMALAR -----------------
 BOT_TOKEN = "8995038139:AAGbfl0eUNKJWm_BavdsWdAr-omsbmZaGhk"
 
-API_ID = 30190324
-API_HASH = "b9ea2523ad5edda79ab68b4c5632e9dc"
+API_ID = 34424037
+API_HASH = "a2688add3c49c5015c996012b3a2dba3"
 
 ADMIN_ID = 7559410726
-
-# Majburiy obuna kanal username'i
-CHANNEL_USERNAME = "@foydaliku_kanali"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -36,28 +34,72 @@ active_clients = {}
 mention_flags = {}    
 
 PHRASES_LIST = [
-    "Almaz xachu", "Жоин", "Qanisz", "Mowina oberin 😁", "Oynamesmi sz",
-    "Bitta sizi otaman ketaman qoshilin tez", "Qoshilin parichkez yolgiz qoldiyu",
-    "Колиздан Ош йилу", "Kimni bolasi bu", "Siz nme jimsizee😅", "Maf goo",
-    "Join", "Para keremasmi😂", "Mafia oynesmi", "Hammasi okeymi👍",
-    "oyinga qoshilin", "Shashlikka boramizmi", "Lavash xochu 🌟",
-    "Nyutonni 1 qonuni ni blasmi", "Kibrlani anaqasi bosezam kirin oyinga",
-    "Хокими фарзанди босезам келн", "Пул Берн💔", "Salom", "byaxkelin",
-    "Reak bosib otirganiz uchun oltin berilsa arzisiz😂", "Botmsz", "Keliinn endi",
-    "Almaz berimi", "Yerning shakli qanday", "Tez qoshilmasez almaz yo😂",
-    "Nime sz qoʻshilmesss", "qowilmasez kal siz🧑🏻‍🦲", "Keling aktivmassizu",
-    "Jasmin sizi soginibti kelin", "Sz kemasez maf qizimedi😁", "Qoshililar 🫠",
-    "Vevgi qilamiz qoshiling🤣", "Sizga yangi xabar borkeyingi utagda🤙🏻😹",
-    "Hamma seni kutvoti O bez🗿", "Oling sizga", "Siz donsz🌚",
-    "sz ni chaqirganim uchn almaz berin", "Kelin oo🗿", "Kozlariz chiroylikan join",
-    "Qoshilmasez laqabz kal", "Келн бот 🗿", "Инстадан йозбкойн",
-    "Bu hayot seni menga berdi dermidi😂", "Хайот тарвузде Ширин туйилмасн",
-    "Szdayam pul koʻpayib ketdi", "Sushi yeysimi", "Mafga qo'shilsez AlpenGold oberaman😂",
-    "Tfu tfu kibrligizga koz temasin😂 qoshilin oyinga", "KIA k5 oldim😁🦦",
-    "Ухламен", "Amaki qoshilasmi", "Bot qo'shiling", "Реак босме кошлн мазги",
-    "Joinasmi kibrbe", "Qayerda korganman sizi😁", "Сз нме утаг кмесз",
-    "Hamma keldi bitta sz kam😐", "Qoshilsangz yaxw bolardi🫠", "Nma gap",
-    "Qòlizi kòtaring don keldi🙈", "Baxona otmidi oyinga😁"
+    "Almaz xachu",
+    "Жоин",
+    "Qanisz",
+    "Mowina oberin 😁",
+    "Oynamesmi sz",
+    "Bitta sizi otaman ketaman qoshilin tez",
+    "Qoshilin parichkez yolgiz qoldiyu",
+    "Колиздан Ош йилу",
+    "Kimni bolasi bu",
+    "Siz nme jimsizee😅",
+    "Maf goo",
+    "Join",
+    "Para keremasmi😂",
+    "Mafia oynesmi",
+    "Hammasi okeymi👍",
+    "oyinga qoshilin",
+    "Shashlikka boramizmi",
+    "Lavash xochu 🌟",
+    "Nyutonni 1 qonuni ni blasmi",
+    "Kibrlani anaqasi bosezam kirin oyinga",
+    "Хокими фарзанди босезам келн",
+    "Пул Берн💔",
+    "Salom",
+    "byaxkelin",
+    "Reak bosib otirganiz uchun oltin berilsa arzisiz😂",
+    "Botmsz",
+    "Keliinn endi",
+    "Almaz berimi",
+    "Yerning shakli qanday",
+    "Tez qoshilmasez almaz yo😂",
+    "Nime sz qoʻshilmesss",
+    "qowilmasez kal siz🧑🏻‍🦲",
+    "Keling aktivmassizu",
+    "Jasmin sizi soginibti kelin",
+    "Sz kemasez maf qizimedi😁",
+    "Qoshililar 🫠",
+    "Vevgi qilamiz qoshiling🤣",
+    "Sizga yangi xabar borkeyingi utagda🤙🏻😹",
+    "Hamma seni kutvoti O bez🗿",
+    "Oling sizga",
+    "Siz donsz🌚",
+    "sz ni chaqirganim uchn almaz berin",
+    "Kelin oo🗿",
+    "Kozlariz chiroylikan join",
+    "Qoshilmasez laqabz kal",
+    "Келн бот 🗿",
+    "Инстадан йозбкойн",
+    "Bu hayot seni menga berdi dermidi😂",
+    "Хайот тарвузде Ширин туйилмасн",
+    "Szdayam pul koʻpayib ketdi",
+    "Sushi yeysimi",
+    "Mafga qo'shilsez AlpenGold oberaman😂",
+    "Tfu tfu kibrligizga koz temasin😂 qoshilin oyinga",
+    "KIA k5 oldim😁🦦",
+    "Ухламен",
+    "Amaki qoshilasmi",
+    "Bot qo'shiling",
+    "Реак босме кошлн мазги",
+    "Joinasmi kibrbe",
+    "Qayerda korganman sizi😁",
+    "Сз нме утаг кмесз",
+    "Hamma keldi bitta sz kam😐",
+    "Qoshilsangz yaxw bolardi🫠",
+    "Nma gap",
+    "Qòlizi kòtaring don keldi🙈",
+    "Baxona otmidi oyinga😁"
 ]
 
 # ----------------- SQLITE BAZA -----------------
@@ -81,33 +123,6 @@ def add_user_to_db(user_id: int):
         conn.close()
     except Exception:
         pass
-
-# ----------------- OBUNANI TEKSHIRISH FUNKSIYASI -----------------
-async def check_user_subscription(user_id: int) -> bool:
-    if user_id == ADMIN_ID:
-        return True
-    try:
-        member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        if member.status not in ["left", "kicked"]:
-            return True
-    except Exception:
-        return True 
-    return False
-
-async def ask_to_subscribe(message: types.Message):
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/foydaliku_kanali")],
-            [InlineKeyboardButton(text="✅ Obuna bo'ldim", callback_data="check_sub")]
-        ]
-    )
-    # Parse mode ishlatilmadi, shuning uchun xatolik chiqmaydi
-    await message.answer(
-        "⚠️ Botdan foydalanish uchun quyidagi kanalga obuna bo'lishingiz kerak:\n\n"
-        "👉 @foydaliku_kanali\n\n"
-        "Kanalga a'zo bo'lgach, «✅ Obuna bo'ldim» tugmasini bosing.",
-        reply_markup=keyboard
-    )
 
 # ----------------- KEYBOARDLAR -----------------
 main_keyboard = ReplyKeyboardMarkup(
@@ -163,35 +178,12 @@ def get_start_text(first_name: str) -> str:
         "Kerakli bo'limni pastdagi tugmalardan tanlang 👇"
     )
 
-# ----------------- CALLBACK HANDLER -----------------
-@dp.callback_query(F.data == "check_sub")
-async def check_subscription_callback(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    is_subbed = await check_user_subscription(user_id)
-    
-    if is_subbed:
-        try:
-            await callback.message.delete()
-        except Exception:
-            pass
-        await callback.message.answer(
-            "✅ Rahmat! Obuna tasdiqlandi. Endi botdan to'liq foydalanishingiz mumkin.",
-            reply_markup=main_keyboard
-        )
-    else:
-        await callback.answer("❌ Siz hali kanalga obuna bo'lmadingiz!", show_alert=True)
-
 # ----------------- AIOGRAM HANDLERLARI -----------------
 
 @dp.message(F.text == "⬅️ Bosh menyu")
 @dp.message(Command("start"))
 async def start_and_back_handler(message: types.Message):
     user_id = message.from_user.id
-    
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
     add_user_to_db(user_id)
 
     if user_id in user_data:
@@ -209,11 +201,6 @@ async def start_and_back_handler(message: types.Message):
 
 @dp.message(F.text == "👨‍💻 Bot owner")
 async def owner_handler(message: types.Message):
-    user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
     text = (
         "👨‍💻 **Bot Dasturchisi va Egasiga Bog'lanish:**\n\n"
         "Telegram: @sapayevv2"
@@ -223,10 +210,7 @@ async def owner_handler(message: types.Message):
 @dp.message(F.text == "👤 Akkauntim")
 async def accounts_handler(message: types.Message):
     user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
+    
     if user_id in connected_accounts and connected_accounts[user_id]:
         acc = connected_accounts[user_id]
         text = (
@@ -250,11 +234,8 @@ async def accounts_handler(message: types.Message):
 @dp.message(F.text == "❌ Akkauntni o'chirish")
 async def remove_account_handler(message: types.Message):
     user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
     session_name = f"user_session_{user_id}"
+    
     mention_flags[user_id] = False
 
     if user_id in active_clients:
@@ -282,10 +263,6 @@ async def remove_account_handler(message: types.Message):
 @dp.message(F.text == "➕ Yangi akkaunt qo'shish")
 async def add_account_handler(message: types.Message):
     user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
     if user_id in connected_accounts and connected_accounts[user_id]:
         await message.answer(
             "⚠️ **Sizda allaqachon akkaunt ulangan!**",
@@ -298,11 +275,6 @@ async def add_account_handler(message: types.Message):
 
 @dp.message(F.text == "📞 Telefon orqali")
 async def phone_option_handler(message: types.Message):
-    user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
-
     text = (
         "📱 **Telefon orqali ulash**\n\n"
         "Telefon raqamingizni yuboring (masalan: `+998901234567`)\n"
@@ -312,18 +284,10 @@ async def phone_option_handler(message: types.Message):
 
 @dp.message(F.contact)
 async def contact_handler(message: types.Message):
-    user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
     await process_phone_number(message, message.contact.phone_number)
 
 @dp.message(F.text.regexp(r'^\+?[0-9]{10,15}$'))
 async def text_phone_handler(message: types.Message):
-    user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
     await process_phone_number(message, message.text.strip())
 
 async def process_phone_number(message: types.Message, phone: str):
@@ -430,9 +394,6 @@ async def smsall_command_handler(message: types.Message):
 @dp.message(F.text)
 async def process_input_handler(message: types.Message):
     user_id = message.from_user.id
-    if not await check_user_subscription(user_id):
-        await ask_to_subscribe(message)
-        return
 
     if user_id not in user_data:
         return
@@ -482,7 +443,10 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
     if user_id in user_data:
         del user_data[user_id]
 
+    # Listenerlarni to'g'ridan-to'g'ri shu yerda qo'shamiz
     setup_pyrogram_listeners(client, user_id)
+    
+    # Client ishga tushgan holatda saqlanadi
     active_clients[user_id] = client
 
     await message.answer(f"✅ **Akkaunt muvaffaqiyatli ulandi va ishga tushdi!**\n\nIsm: {me.first_name}\nID: `{me.id}`", parse_mode="Markdown")
@@ -638,5 +602,3 @@ if __name__ == "__main__":
         asyncio.set_event_loop(loop)
         
     loop.run_until_complete(main())
-
-
