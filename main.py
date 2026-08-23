@@ -1,13 +1,12 @@
 import asyncio
-import random
 import os
 import re
-import threading
 import sqlite3
+from typing import Callable, Dict, Any, Awaitable
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, TelegramObject
 from pyrogram import Client, filters
 from pyrogram.types import Message as PyroMessage
 from pyrogram.errors import (
@@ -18,12 +17,15 @@ from pyrogram.errors import (
 )
 
 # ----------------- SOZLAMALAR -----------------
-BOT_TOKEN = "8606815133:AAEHY0l5iWocDIC0CT5oxJ9DCEd8SyS5s4A"
+BOT_TOKEN = "8606815133:AAHmQ-KmsPl90f79EbRb3mv4Xl91nR6QJI8"
 
-API_ID = 30190334
-API_HASH = "b9ea2523ad5edda79ab68b4c5632e9dc"
+API_ID = 30190324
+API_HASH = "a2688add3c49c5015c996012b3a2dba3"
 
 ADMIN_ID = 7559410726
+
+# Majburiy obuna kanal username'i
+CHANNEL_USERNAME = "@foydaliku_kanali"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -34,72 +36,28 @@ active_clients = {}
 mention_flags = {}    
 
 PHRASES_LIST = [
-    "Almaz xachu",
-    "Жоин",
-    "Qanisz",
-    "Mowina oberin 😁",
-    "Oynamesmi sz",
-    "Bitta sizi otaman ketaman qoshilin tez",
-    "Qoshilin parichkez yolgiz qoldiyu",
-    "Колиздан Ош йилу",
-    "Kimni bolasi bu",
-    "Siz nme jimsizee😅",
-    "Maf goo",
-    "Join",
-    "Para keremasmi😂",
-    "Mafia oynesmi",
-    "Hammasi okeymi👍",
-    "oyinga qoshilin",
-    "Shashlikka boramizmi",
-    "Lavash xochu 🌟",
-    "Nyutonni 1 qonuni ni blasmi",
-    "Kibrlani anaqasi bosezam kirin oyinga",
-    "Хокими фарзанди босезам келн",
-    "Пул Берн💔",
-    "Salom",
-    "byaxkelin",
-    "Reak bosib otirganiz uchun oltin berilsa arzisiz😂",
-    "Botmsz",
-    "Keliinn endi",
-    "Almaz berimi",
-    "Yerning shakli qanday",
-    "Tez qoshilmasez almaz yo😂",
-    "Nime sz qoʻshilmesss",
-    "qowilmasez kal siz🧑🏻‍🦲",
-    "Keling aktivmassizu",
-    "Jasmin sizi soginibti kelin",
-    "Sz kemasez maf qizimedi😁",
-    "Qoshililar 🫠",
-    "Vevgi qilamiz qoshiling🤣",
-    "Sizga yangi xabar borkeyingi utagda🤙🏻😹",
-    "Hamma seni kutvoti O bez🗿",
-    "Oling sizga",
-    "Siz donsz🌚",
-    "sz ni chaqirganim uchn almaz berin",
-    "Kelin oo🗿",
-    "Kozlariz chiroylikan join",
-    "Qoshilmasez laqabz kal",
-    "Келн бот 🗿",
-    "Инстадан йозбкойн",
-    "Bu hayot seni menga berdi dermidi😂",
-    "Хайот тарвузде Ширин туйилмасн",
-    "Szdayam pul koʻpayib ketdi",
-    "Sushi yeysimi",
-    "Mafga qo'shilsez AlpenGold oberaman😂",
-    "Tfu tfu kibrligizga koz temasin😂 qoshilin oyinga",
-    "KIA k5 oldim😁🦦",
-    "Ухламен",
-    "Amaki qoshilasmi",
-    "Bot qo'shiling",
-    "Реак босме кошлн мазги",
-    "Joinasmi kibrbe",
-    "Qayerda korganman sizi😁",
-    "Сз нме утаг кмесз",
-    "Hamma keldi bitta sz kam😐",
-    "Qoshilsangz yaxw bolardi🫠",
-    "Nma gap",
-    "Qòlizi kòtaring don keldi🙈",
-    "Baxona otmidi oyinga😁"
+    "Almaz xachu", "Жоин", "Qanisz", "Mowina oberin 😁", "Oynamesmi sz",
+    "Bitta sizi otaman ketaman qoshilin tez", "Qoshilin parichkez yolgiz qoldiyu",
+    "Колиздан Ош йилу", "Kimni bolasi bu", "Siz nme jimsizee😅", "Maf goo",
+    "Join", "Para keremasmi😂", "Mafia oynesmi", "Hammasi okeymi👍",
+    "oyinga qoshilin", "Shashlikka boramizmi", "Lavash xochu 🌟",
+    "Nyutonni 1 qonuni ni blasmi", "Kibrlani anaqasi bosezam kirin oyinga",
+    "Хокими фарзанди босезам келн", "Пул Берн💔", "Salom", "byaxkelin",
+    "Reak bosib otirganiz uchun oltin berilsa arzisiz😂", "Botmsz", "Keliinn endi",
+    "Almaz berimi", "Yerning shakli qanday", "Tez qoshilmasez almaz yo😂",
+    "Nime sz qoʻshilmesss", "qowilmasez kal siz🧑🏻‍🦲", "Keling aktivmassizu",
+    "Jasmin sizi soginibti kelin", "Sz kemasez maf qizimedi😁", "Qoshililar 🫠",
+    "Vevgi qilamiz qoshiling🤣", "Sizga yangi xabar borkeyingi utagda🤙🏻😹",
+    "Hamma seni kutvoti O bez🗿", "Oling sizga", "Siz donsz🌚",
+    "sz ni chaqirganim uchn almaz berin", "Kelin oo🗿", "Kozlariz chiroylikan join",
+    "Qoshilmasez laqabz kal", "Келн бот 🗿", "Инстадан йозбкойн",
+    "Bu hayot seni menga berdi dermidi😂", "Хайот тарвузде Ширин туйилмасн",
+    "Szdayam pul koʻpayib ketdi", "Sushi yeysimi", "Mafga qo'shilsez AlpenGold oberaman😂",
+    "Tfu tfu kibrligizga koz temasin😂 qoshilin oyinga", "KIA k5 oldim😁🦦",
+    "Ухламен", "Amaki qoshilasmi", "Bot qo'shiling", "Реак босме кошлн мазги",
+    "Joinasmi kibrbe", "Qayerda korganman sizi😁", "Сз нме утаг кмесз",
+    "Hamma keldi bitta sz kam😐", "Qoshilsangz yaxw bolardi🫠", "Nma gap",
+    "Qòlizi kòtaring don keldi🙈", "Baxona otmidi oyinga😁"
 ]
 
 # ----------------- SQLITE BAZA -----------------
@@ -123,6 +81,70 @@ def add_user_to_db(user_id: int):
         conn.close()
     except Exception:
         pass
+
+# ----------------- OBUNANI TEKSHIRISH -----------------
+async def check_user_subscription(user_id: int) -> bool:
+    if user_id == ADMIN_ID:
+        return True
+    try:
+        member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        if member.status in ["member", "administrator", "creator"]:
+            return True
+    except Exception:
+        return False
+    return False
+
+async def ask_to_subscribe(event: TelegramObject):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/foydaliku_kanali")],
+            [InlineKeyboardButton(text="✅ Obuna bo'ldim", callback_data="check_sub")]
+        ]
+    )
+    
+    text = (
+        "⚠️ Botdan to'liq foydalanish uchun quyidagi kanalga obuna bo'lishingiz shart:\n\n"
+        "👉 @foydaliku_kanali\n\n"
+        "Kanalga a'zo bo'lgach, pastdagi «✅ Obuna bo'ldim» tugmasini bosing."
+    )
+
+    if isinstance(event, types.Message):
+        try:
+            await event.answer(text, reply_markup=keyboard)
+        except Exception:
+            pass
+    elif isinstance(event, types.CallbackQuery):
+        try:
+            await event.message.answer(text, reply_markup=keyboard)
+            await event.answer("⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
+        except Exception:
+            pass
+
+# ----------------- GLOBAL MIDDLEWARE -----------------
+class SubscriptionMiddleware:
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: Dict[str, Any]
+    ) -> Any:
+        user = None
+        if isinstance(event, types.Message):
+            user = event.from_user
+        elif isinstance(event, types.CallbackQuery):
+            user = event.from_user
+            if event.data == "check_sub":
+                return await handler(event, data)
+
+        if user:
+            if not await check_user_subscription(user.id):
+                await ask_to_subscribe(event)
+                return
+
+        return await handler(event, data)
+
+dp.message.middleware(SubscriptionMiddleware())
+dp.callback_query.middleware(SubscriptionMiddleware())
 
 # ----------------- KEYBOARDLAR -----------------
 main_keyboard = ReplyKeyboardMarkup(
@@ -178,6 +200,24 @@ def get_start_text(first_name: str) -> str:
         "Kerakli bo'limni pastdagi tugmalardan tanlang 👇"
     )
 
+# ----------------- CALLBACK HANDLER -----------------
+@dp.callback_query(F.data == "check_sub")
+async def check_subscription_callback(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    is_subbed = await check_user_subscription(user_id)
+    
+    if is_subbed:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(
+            "✅ Rahmat! Obuna tasdiqlandi. Endi botdan to'liq foydalanishingiz mumkin.",
+            reply_markup=main_keyboard
+        )
+    else:
+        await callback.answer("❌ Siz hali kanalga obuna bo'lmadingiz!", show_alert=True)
+
 # ----------------- AIOGRAM HANDLERLARI -----------------
 
 @dp.message(F.text == "⬅️ Bosh menyu")
@@ -210,7 +250,7 @@ async def owner_handler(message: types.Message):
 @dp.message(F.text == "👤 Akkauntim")
 async def accounts_handler(message: types.Message):
     user_id = message.from_user.id
-    
+
     if user_id in connected_accounts and connected_accounts[user_id]:
         acc = connected_accounts[user_id]
         text = (
@@ -235,7 +275,6 @@ async def accounts_handler(message: types.Message):
 async def remove_account_handler(message: types.Message):
     user_id = message.from_user.id
     session_name = f"user_session_{user_id}"
-    
     mention_flags[user_id] = False
 
     if user_id in active_clients:
@@ -443,10 +482,7 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
     if user_id in user_data:
         del user_data[user_id]
 
-    # Listenerlarni to'g'ridan-to'g'ri shu yerda qo'shamiz
     setup_pyrogram_listeners(client, user_id)
-    
-    # Client ishga tushgan holatda saqlanadi
     active_clients[user_id] = client
 
     await message.answer(f"✅ **Akkaunt muvaffaqiyatli ulandi va ishga tushdi!**\n\nIsm: {me.first_name}\nID: `{me.id}`", parse_mode="Markdown")
@@ -454,7 +490,6 @@ async def finalize_login(message: types.Message, client: Client, user_id: int, p
         "⚡ **Buyruqlar faollashdi!**\n\n"
         "• Oddiy utag: `.u`\n"
         "• Matnli utag: `.u Sizning so'zingiz`\n"
-        "• KETMA-KET utag: `.ru`\n"
         "• To'xtatish: `.su`",
         reply_markup=main_keyboard
     )
@@ -478,15 +513,6 @@ def setup_pyrogram_listeners(client: Client, user_id: int):
                 await msg.reply_text("ℹ️ Hozirda faol utag yo'q.")
             return
 
-        if cmd == ".ru":
-            if mention_flags.get(user_id, False):
-                await msg.reply_text("⚠️ Utag davom etmoqda. To'xtatish uchun `.su` yuboring.")
-                return
-
-            mention_flags[user_id] = True
-            asyncio.create_task(run_mention_loop(c, msg, user_id, use_sequential_phrases=True))
-            return
-
         if cmd == ".u" or cmd.startswith(".u "):
             if mention_flags.get(user_id, False):
                 await msg.reply_text("⚠️ Utag davom etmoqda. To'xtatish uchun `.su` yuboring.")
@@ -494,10 +520,10 @@ def setup_pyrogram_listeners(client: Client, user_id: int):
 
             custom_text = cmd[3:].strip() if cmd.startswith(".u ") else ""
             mention_flags[user_id] = True
-            asyncio.create_task(run_mention_loop(c, msg, user_id, custom_text, use_sequential_phrases=False))
+            asyncio.create_task(run_mention_loop(c, msg, user_id, custom_text))
             return
 
-async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custom_text: str = "", use_sequential_phrases: bool = False):
+async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custom_text: str = ""):
     chat_id = msg.chat.id
     
     try:
@@ -527,14 +553,12 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
                 user_mention = f"[{name}](tg://user?id={user.id})"
 
             try:
-                if use_sequential_phrases and PHRASES_LIST:
+                if custom_text:
+                    text_to_send = f"{user_mention} {custom_text}"
+                else:
                     phrase_index = count % total_phrases 
                     phrase = PHRASES_LIST[phrase_index]
                     text_to_send = f"{user_mention} {phrase}"
-                elif custom_text:
-                    text_to_send = f"{user_mention} {custom_text}"
-                else:
-                    text_to_send = user_mention
             except Exception:
                 text_to_send = user_mention
 
@@ -566,39 +590,29 @@ async def run_mention_loop(client: Client, msg: PyroMessage, user_id: int, custo
     finally:
         mention_flags[user_id] = False
 
-# ----------------- WEB SERVER -----------------
+# ----------------- WEB SERVER VA ASOSIY LOOP -----------------
 
 async def handle_ping(request):
-    return web.Response(text="Bot runs fine!")
-
-def run_web_server():
-    server_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(server_loop)
-    
-    app = web.Application()
-    app.router.add_get("/", handle_ping)
-    
-    port = int(os.environ.get("PORT", 8080))
-    runner = web.AppRunner(app)
-    server_loop.run_until_complete(runner.setup())
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    server_loop.run_until_complete(site.start())
-    print(f"Veb-server {port}-portda ishga tushdi!")
-    server_loop.run_forever()
+    return web.Response(text="Bot is running!")
 
 async def main():
     db_start()
-    print("Bot muvaffaqiyatli ishga tushdi!")
+    await bot.delete_webhook(drop_pending_updates=True)
+    
+    # Aiohttp veb-serverini ishga tushiramiz (Render portni ko'rishi uchun)
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"Veb-server {port}-portda ishga tushdi va Render port talabini bajardi!")
+
+    # Bot polling va serverni birgalikda yurgizamiz
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    server_thread = threading.Thread(target=run_web_server, daemon=True)
-    server_thread.start()
-    
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-    loop.run_until_complete(main())
+    asyncio.run(main())
+
